@@ -18,7 +18,7 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 #include "esp_heap_caps.h"
 #include "lvgl.h"
 
