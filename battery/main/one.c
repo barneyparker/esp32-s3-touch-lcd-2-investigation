@@ -374,14 +374,15 @@ void app_main(void)
   esp_lcd_touch_config_t tp_config = {
       .x_max = LCD_H_RES,
       .y_max = LCD_V_RES,
-      .rst_gpio_num = -1,
-      .int_gpio_num = -1,
+      .rst_gpio_num = LCD_PIN_RST,
+      .int_gpio_num = -1, // Set to the interrupt pin if used
       .levels = {
           .reset = 0,
           .interrupt = 0,
       },
   };
   ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_cst816s(io_handle, &tp_config, &tp));
+  ESP_LOGI(TAG, "Touch screen initialized successfully");
 
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
