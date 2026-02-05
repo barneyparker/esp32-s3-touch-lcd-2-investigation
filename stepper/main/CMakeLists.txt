@@ -1,0 +1,44 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "app_state.c"
+        "drivers/display_driver.c"
+        "drivers/battery_monitor.c"
+        "network/wifi_manager.c"
+        "network/captive_portal.c"
+        "network/websocket_client.c"
+        "network/ntp_sync.c"
+        "network/ota_updater.c"
+        "core/step_counter.c"
+        "core/storage_manager.c"
+        "ui/ui_manager.c"
+        "ui/ui_step_mode.c"
+        "ui/ui_setup.c"
+        "ui/ui_common.c"
+        "ui/qr_display.c"
+        "web/portal_routes.c"
+
+    INCLUDE_DIRS
+        "."
+        "drivers"
+        "network"
+        "core"
+        "ui"
+        "web"
+
+    REQUIRES
+        lvgl
+        esp_lcd
+        driver
+        esp_driver_ledc
+        esp_adc
+        esp_lcd_touch_cst816s
+        esp_wifi
+        esp_http_server
+        nvs_flash
+        esp_netif
+        esp_event
+        esp_https_ota
+        app_update
+        esp-tls
+)
