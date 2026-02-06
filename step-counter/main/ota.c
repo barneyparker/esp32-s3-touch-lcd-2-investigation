@@ -9,7 +9,7 @@
 #include <string.h>
 
 static const char *TAG = "OTA";
-static const char *FIRMWARE_URL = "https://steps.barneyparker.com/firmware/step-display.bin";
+static const char *FIRMWARE_URL = "https://steps.barneyparker.com/firmware/step-counter.bin";
 static const char *NVS_NAMESPACE = "ota";
 static const char *NVS_ETAG_KEY = "etag";
 
