@@ -229,9 +229,9 @@ esp_err_t step_counter_flush_one(void)
         return ESP_ERR_NO_MEM;
     }
 
-    ESP_LOGI(TAG, "Sending step: %s", json_string);
+    ESP_LOGD(TAG, "Sending step: %s", json_string);
 
-    // Send via WebSocket
+    // Send via WebSocket with minimal timeout for fastest transmission
     esp_websocket_client_handle_t ws_client = websocket_client_get_handle();
     if (ws_client == NULL) {
         free(json_string);
@@ -239,7 +239,7 @@ esp_err_t step_counter_flush_one(void)
         return ESP_ERR_INVALID_STATE;
     }
 
-    int sent = esp_websocket_client_send_text(ws_client, json_string, strlen(json_string), portMAX_DELAY);
+    int sent = esp_websocket_client_send_text(ws_client, json_string, strlen(json_string), pdMS_TO_TICKS(100));
     free(json_string);
 
     if (sent < 0) {
@@ -251,7 +251,7 @@ esp_err_t step_counter_flush_one(void)
     step_buffer_read_idx = (step_buffer_read_idx + 1) % MAX_BUFFERED_STEPS;
     step_buffer_size--;
 
-    ESP_LOGI(TAG, "Step sent successfully, %d steps remaining in buffer", step_buffer_size);
+    ESP_LOGD(TAG, "Step sent successfully, %d steps remaining in buffer", step_buffer_size);
 
     return ESP_OK;
 }

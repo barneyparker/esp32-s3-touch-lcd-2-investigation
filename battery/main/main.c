@@ -27,6 +27,11 @@ static void app_main_loop(void)
 {
   // Initialize power management timer
   power_management_start_time_ms = esp_timer_get_time() / 1000;
+  
+  // Battery reading throttle - only read every 15 seconds
+  uint64_t last_battery_read_ms = 0;
+  float voltage = 0.0f;
+  int battery_pct = 0;
 
   while (1)
   {
@@ -37,12 +42,14 @@ static void app_main_loop(void)
     uint64_t activity_reference_ms = (last_step_ms > power_management_start_time_ms) ? last_step_ms : power_management_start_time_ms;
     uint64_t time_since_last_step_ms = current_time_ms - activity_reference_ms;
 
-    float voltage = 0.0f;
-    int adc_raw = 0;
-    read_battery(&voltage, &adc_raw);
-
-    int pct_milli = estimate_percentage_milli(voltage);
-    int battery_pct = pct_milli / 10;
+    // Only read battery every 15 seconds (not every 100ms)
+    if (current_time_ms - last_battery_read_ms >= 15000) {
+      int adc_raw = 0;
+      read_battery(&voltage, &adc_raw);
+      int pct_milli = estimate_percentage_milli(voltage);
+      battery_pct = pct_milli / 10;
+      last_battery_read_ms = current_time_ms;
+    }
 
     uint8_t buffer_size = step_counter_get_buffer_size();
     uint32_t total_steps = step_counter_get_total_steps();
@@ -109,8 +116,9 @@ static void app_main_loop(void)
       display_power_saving_active = false;
     }
 
-    // Log power management state (not every second, only when interesting)
-    if (wifi_countdown_s == 0 || display_countdown_s == 0 || buffer_size > 0) {
+    // Log power management state only when buffer has steps or timers are near zero
+    if ((buffer_size > 0 && current_time_ms - last_battery_read_ms < 100) || 
+        wifi_countdown_s <= 5 || display_countdown_s <= 5) {
       ESP_LOGI(TAG, "WiFi in: %ds, Display in: %ds, Steps: %lu, Buffered: %d",
                wifi_countdown_s,
                display_countdown_s,
@@ -143,7 +151,9 @@ static void app_main_loop(void)
       }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // Run main loop faster for more responsive display and faster WebSocket sends
+    // Check every 100ms instead of 1 second
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
