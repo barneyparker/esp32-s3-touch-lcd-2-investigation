@@ -21,8 +21,10 @@ static lv_color_t *disp_buf1 = NULL;
 static lv_obj_t *label_adc = NULL;
 static lv_obj_t *label_voltage = NULL;
 static lv_obj_t *label_percent = NULL;
-static lv_obj_t *label_touch = NULL;
 static lv_obj_t *label_steps = NULL;
+static lv_obj_t *label_buffer_count = NULL;
+static lv_obj_t *label_wifi_status = NULL;
+static lv_obj_t *label_ws_status = NULL;
 static lv_obj_t *label_startup_status = NULL;
 static lv_obj_t *startup_spinner = NULL;
 static lv_obj_t *qr_code = NULL;
@@ -172,31 +174,35 @@ void ui_show_main_screen(void)
   main_container = lv_obj_create(scr);
   lv_obj_set_size(main_container, lv_pct(100), lv_pct(100));
 
+  // Top left: Buffer count (unsent steps)
+  label_buffer_count = lv_label_create(main_container);
+  lv_label_set_text(label_buffer_count, "Q:0");
+  lv_obj_set_style_text_font(label_buffer_count, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_buffer_count, LV_ALIGN_TOP_LEFT, 5, 5);
+
+  // Top right: Battery percentage
+  label_percent = lv_label_create(main_container);
+  lv_label_set_text(label_percent, "100%");
+  lv_obj_set_style_text_font(label_percent, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_percent, LV_ALIGN_TOP_RIGHT, -5, 5);
+
+  // WiFi status icon (next to battery)
+  label_wifi_status = lv_label_create(main_container);
+  lv_label_set_text(label_wifi_status, "W:-");
+  lv_obj_set_style_text_font(label_wifi_status, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_wifi_status, LV_ALIGN_TOP_RIGHT, -5, 20);
+
+  // WebSocket status icon (next to WiFi)
+  label_ws_status = lv_label_create(main_container);
+  lv_label_set_text(label_ws_status, "S:-");
+  lv_obj_set_style_text_font(label_ws_status, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_ws_status, LV_ALIGN_TOP_RIGHT, -5, 35);
+
   // Large step counter in center
   label_steps = lv_label_create(main_container);
-  lv_label_set_text(label_steps, "8008");
+  lv_label_set_text(label_steps, "0");
   lv_obj_set_style_text_font(label_steps, &lv_font_montserrat_48, 0);
   lv_obj_align(label_steps, LV_ALIGN_CENTER, 0, 0);
-
-  // Small battery info at top
-  label_percent = lv_label_create(main_container);
-  lv_label_set_text(label_percent, "Pct: 0.0%");
-  lv_obj_align(label_percent, LV_ALIGN_TOP_MID, 0, 10);
-
-  label_voltage = lv_label_create(main_container);
-  lv_label_set_text(label_voltage, "Volt: 0.000 V");
-  lv_obj_set_style_text_font(label_voltage, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_voltage, LV_ALIGN_TOP_MID, 0, 35);
-
-  label_adc = lv_label_create(main_container);
-  lv_label_set_text(label_adc, "ADC: 0");
-  lv_obj_set_style_text_font(label_adc, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_adc, LV_ALIGN_BOTTOM_MID, 0, -10);
-
-  label_touch = lv_label_create(main_container);
-  lv_label_set_text(label_touch, "Touch: x=0, y=0");
-  lv_obj_set_style_text_font(label_touch, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_touch, LV_ALIGN_BOTTOM_LEFT, 10, -10);
 
   lvgl_unlock();
 
@@ -270,6 +276,49 @@ void ui_update_battery(float voltage, int adc_raw, int pct_milli)
     int pct_tenth = pct_milli % 10;
     snprintf(buf, sizeof(buf), "Pct: %d.%d%%", pct_whole, pct_tenth);
     lv_label_set_text(label_percent, buf);
+  }
+
+  lvgl_unlock();
+}
+
+void ui_update_status(uint32_t step_count, uint8_t buffer_count, bool wifi_connected, bool ws_connected, int battery_pct)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  char buf[32];
+
+  // Update step count (center, large)
+  if (label_steps)
+  {
+    snprintf(buf, sizeof(buf), "%lu", (unsigned long)step_count);
+    lv_label_set_text(label_steps, buf);
+  }
+
+  // Update buffer count (top left)
+  if (label_buffer_count)
+  {
+    snprintf(buf, sizeof(buf), "Q:%u", buffer_count);
+    lv_label_set_text(label_buffer_count, buf);
+  }
+
+  // Update battery percentage (top right)
+  if (label_percent)
+  {
+    snprintf(buf, sizeof(buf), "%d%%", battery_pct);
+    lv_label_set_text(label_percent, buf);
+  }
+
+  // Update WiFi status
+  if (label_wifi_status)
+  {
+    lv_label_set_text(label_wifi_status, wifi_connected ? "W:OK" : "W:-");
+  }
+
+  // Update WebSocket status
+  if (label_ws_status)
+  {
+    lv_label_set_text(label_ws_status, ws_connected ? "S:OK" : "S:-");
   }
 
   lvgl_unlock();

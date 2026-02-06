@@ -22,6 +22,9 @@ static volatile uint8_t step_buffer_size = 0;
 static volatile uint8_t step_buffer_read_idx = 0;
 static volatile uint8_t step_buffer_write_idx = 0;
 
+// Total step counter
+static volatile uint32_t total_steps = 0;
+
 // Debouncing
 static volatile uint32_t last_step_time_ms = 0;
 
@@ -40,6 +43,9 @@ static void IRAM_ATTR step_isr_handler(void *arg)
         return;
     }
     last_step_time_ms = now_ms;
+
+    // Increment total step counter
+    total_steps++;
 
     // Add timestamp to buffer if not full
     if (step_buffer_size < MAX_BUFFERED_STEPS) {
@@ -192,4 +198,9 @@ esp_err_t step_counter_flush_one(void)
     ESP_LOGI(TAG, "Step sent successfully, %d steps remaining in buffer", step_buffer_size);
 
     return ESP_OK;
+}
+
+uint32_t step_counter_get_total_steps(void)
+{
+    return total_steps;
 }

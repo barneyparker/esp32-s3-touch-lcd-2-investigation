@@ -25,20 +25,29 @@ static void app_main_loop(void)
     read_battery(&voltage, &adc_raw);
 
     int pct_milli = estimate_percentage_milli(voltage);
+    int battery_pct = pct_milli / 10;
 
     uint8_t buffer_size = step_counter_get_buffer_size();
+    uint32_t total_steps = step_counter_get_total_steps();
+    bool wifi_connected = wifi_manager_is_connected();
+    bool ws_connected = websocket_client_is_connected();
 
-    ESP_LOGI(TAG, "ADC raw: %d, Voltage: %.3f V, Percent: %.1f%%, Steps buffered: %d, free heap: %u",
+    ESP_LOGI(TAG, "ADC raw: %d, Voltage: %.3f V, Percent: %.1f%%, Steps: %lu, Buffered: %d, free heap: %u",
              adc_raw,
              voltage,
              pct_milli / 10.0f,
+             (unsigned long)total_steps,
              buffer_size,
              esp_get_free_heap_size());
 
+    // Update UI with all status information
+    ui_update_status(total_steps, buffer_size, wifi_connected, ws_connected, battery_pct);
+
+    // Also update detailed battery info
     ui_update_battery(voltage, adc_raw, pct_milli);
 
     // Try to send buffered steps if we have any
-    if (buffer_size > 0 && websocket_client_is_connected()) {
+    if (buffer_size > 0 && ws_connected) {
       esp_err_t err = step_counter_flush_one();
       if (err == ESP_OK) {
         ESP_LOGI(TAG, "Sent buffered step");

@@ -46,6 +46,13 @@ esp_err_t step_counter_flush_one(void);
  */
 esp_err_t step_counter_get_mac_string(char *mac_str, size_t size);
 
+/**
+ * @brief Get total step count (all steps detected since boot)
+ *
+ * @return Total number of steps detected
+ */
+uint32_t step_counter_get_total_steps(void);
+
 #ifdef __cplusplus
 }
 #endif

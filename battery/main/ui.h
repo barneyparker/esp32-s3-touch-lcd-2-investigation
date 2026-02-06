@@ -48,4 +48,15 @@ void ui_update_battery(float voltage, int adc_raw, int pct_milli);
  */
 void ui_show_qr_code(const char *qr_data, const char *message);
 
+/**
+ * @brief Update main screen with step count and status
+ *
+ * @param step_count Total steps detected
+ * @param buffer_count Number of unsent steps in buffer
+ * @param wifi_connected WiFi connection status
+ * @param ws_connected WebSocket connection status
+ * @param battery_pct Battery percentage (0-100)
+ */
+void ui_update_status(uint32_t step_count, uint8_t buffer_count, bool wifi_connected, bool ws_connected, int battery_pct);
+
 #endif // UI_H
