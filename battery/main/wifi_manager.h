@@ -38,6 +38,24 @@ void wifi_manager_start_ap_mode(void);
 bool wifi_manager_is_connected(void);
 
 /**
+ * @brief Disconnect from WiFi and stop WiFi for power saving
+ *
+ * Disconnects from the current network and stops the WiFi driver to save power.
+ * Call wifi_manager_reconnect() to reconnect.
+ */
+void wifi_manager_disconnect(void);
+
+/**
+ * @brief Reconnect WiFi after power saving disconnect
+ *
+ * Restarts WiFi and attempts to connect using stored credentials.
+ * Must be called after wifi_manager_disconnect(), not before wifi_manager_init().
+ *
+ * @return WIFI_RESULT_CONNECTED if connected, WIFI_RESULT_FAILED if connection failed
+ */
+wifi_result_t wifi_manager_reconnect(void);
+
+/**
  * @brief Get number of stored WiFi credentials
  */
 int wifi_manager_get_stored_count(void);

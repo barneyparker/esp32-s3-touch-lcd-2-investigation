@@ -93,3 +93,24 @@ esp_lcd_panel_handle_t display_init(esp_lcd_panel_io_color_trans_done_cb_t on_co
   ESP_LOGI(TAG, "Display hardware initialized");
   return panel_handle;
 }
+
+void display_set_backlight(uint8_t brightness)
+{
+  if (brightness > 100) {
+    brightness = 100;
+  }
+  // Convert 0-100 to 0-1023 (10-bit PWM)
+  uint32_t duty = (brightness * 1023) / 100;
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
+void display_backlight_on(void)
+{
+  display_set_backlight(50);  // 50% brightness
+}
+
+void display_backlight_off(void)
+{
+  display_set_backlight(0);
+}

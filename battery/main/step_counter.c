@@ -25,6 +25,10 @@ static volatile uint8_t step_buffer_write_idx = 0;
 // Total step counter
 static volatile uint32_t total_steps = 0;
 
+// Last step time tracking
+static volatile uint64_t last_step_time_ms = 0;
+static volatile bool wifi_reconnect_needed = false;
+
 // Debouncing state
 static volatile int last_stable_level = -1;  // Last confirmed stable pin state
 static volatile int pending_level = -1;       // Pin level being debounced
@@ -41,28 +45,29 @@ static void IRAM_ATTR debounce_timer_callback(void *arg)
 {
     // Read current pin level
     int current_level = gpio_get_level(STEP_GPIO);
-    
+
     // Check if pin is still in the pending state
     if (current_level == pending_level && pending_level != last_stable_level) {
         // Pin has been stable in new state for 80ms - accept the change
         last_stable_level = pending_level;
-        
+
+        // Record when this step occurred
+        last_step_time_ms = esp_timer_get_time() / 1000;
+
+        // Signal that WiFi reconnection may be needed
+        wifi_reconnect_needed = true;
+
         // Increment total step counter
         total_steps++;
-        
+
         // Add timestamp to buffer if not full
         if (step_buffer_size < MAX_BUFFERED_STEPS) {
-            uint64_t timestamp_ms = esp_timer_get_time() / 1000;
+            uint64_t timestamp_ms = last_step_time_ms;
             step_buffer[step_buffer_write_idx] = timestamp_ms;
             step_buffer_write_idx = (step_buffer_write_idx + 1) % MAX_BUFFERED_STEPS;
             step_buffer_size++;
-        } else {
-            ESP_EARLY_LOGW(TAG, "Step buffer full!");
         }
     }
-    
-    // Reset pending state
-    pending_level = -1;
 }
 
 /**
@@ -72,24 +77,24 @@ static void IRAM_ATTR step_isr_handler(void *arg)
 {
     uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
     int current_level = gpio_get_level(STEP_GPIO);
-    
+
     // If this is the first interrupt, just record the initial state
     if (last_stable_level == -1) {
         last_stable_level = current_level;
         return;
     }
-    
+
     // If level is same as stable state, ignore it
     if (current_level == last_stable_level) {
         pending_level = -1;
         return;
     }
-    
+
     // Level has changed - start/restart debounce timer
     if (pending_level != current_level) {
         pending_level = current_level;
         level_change_time_ms = now_ms;
-        
+
         // Start the debounce timer (will fire after DEBOUNCE_MS)
         esp_timer_stop(debounce_timer);
         esp_timer_start_once(debounce_timer, DEBOUNCE_MS * 1000);  // Convert ms to microseconds
@@ -118,7 +123,7 @@ esp_err_t step_counter_init(void)
         .dispatch_method = ESP_TIMER_TASK,
         .name = "step_debounce"
     };
-    
+
     err = esp_timer_create(&timer_args, &debounce_timer);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create debounce timer: %s", esp_err_to_name(err));
@@ -254,4 +259,18 @@ esp_err_t step_counter_flush_one(void)
 uint32_t step_counter_get_total_steps(void)
 {
     return total_steps;
+}
+
+uint64_t step_counter_get_last_step_time_ms(void)
+{
+    return last_step_time_ms;
+}
+
+bool step_counter_needs_wifi_reconnect(void)
+{
+    bool needed = wifi_reconnect_needed;
+    if (needed) {
+        wifi_reconnect_needed = false;  // Clear the flag
+    }
+    return needed;
 }

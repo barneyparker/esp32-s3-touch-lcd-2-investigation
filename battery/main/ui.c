@@ -25,6 +25,7 @@ static lv_obj_t *label_steps = NULL;
 static lv_obj_t *label_buffer_count = NULL;
 static lv_obj_t *label_wifi_status = NULL;
 static lv_obj_t *label_ws_status = NULL;
+static lv_obj_t *label_power_timers = NULL;
 static lv_obj_t *label_startup_status = NULL;
 static lv_obj_t *startup_spinner = NULL;
 static lv_obj_t *qr_code = NULL;
@@ -204,6 +205,12 @@ void ui_show_main_screen(void)
   lv_obj_set_style_text_font(label_steps, &lv_font_montserrat_48, 0);
   lv_obj_align(label_steps, LV_ALIGN_CENTER, 0, 0);
 
+  // Power management timers at bottom
+  label_power_timers = lv_label_create(main_container);
+  lv_label_set_text(label_power_timers, "WiFi: 30s | Display: 60s");
+  lv_obj_set_style_text_font(label_power_timers, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_power_timers, LV_ALIGN_BOTTOM_MID, 0, -5);
+
   lvgl_unlock();
 
   ESP_LOGI(TAG, "Main screen shown");
@@ -319,6 +326,32 @@ void ui_update_status(uint32_t step_count, uint8_t buffer_count, bool wifi_conne
   if (label_ws_status)
   {
     lv_label_set_text(label_ws_status, ws_connected ? "S:OK" : "S:-");
+  }
+
+  lvgl_unlock();
+}
+
+void ui_update_power_timers(int wifi_countdown_s, int display_countdown_s)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  char buf[64];
+
+  if (label_power_timers)
+  {
+    if (wifi_countdown_s == 0 && display_countdown_s == 0) {
+      lv_label_set_text(label_power_timers, "WiFi: OFF | Display: OFF");
+    } else if (wifi_countdown_s == 0) {
+      snprintf(buf, sizeof(buf), "WiFi: OFF | Display: %ds", display_countdown_s);
+      lv_label_set_text(label_power_timers, buf);
+    } else if (display_countdown_s == 0) {
+      snprintf(buf, sizeof(buf), "WiFi: %ds | Display: OFF", wifi_countdown_s);
+      lv_label_set_text(label_power_timers, buf);
+    } else {
+      snprintf(buf, sizeof(buf), "WiFi: %ds | Display: %ds", wifi_countdown_s, display_countdown_s);
+      lv_label_set_text(label_power_timers, buf);
+    }
   }
 
   lvgl_unlock();

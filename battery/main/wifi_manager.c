@@ -399,6 +399,36 @@ bool wifi_manager_is_connected(void)
     return wifi_connected;
 }
 
+void wifi_manager_disconnect(void)
+{
+    ESP_LOGI(TAG, "Disconnecting WiFi for power saving");
+    wifi_connected = false;
+    esp_wifi_disconnect();
+    esp_wifi_stop();
+}
+
+wifi_result_t wifi_manager_reconnect(void)
+{
+    ESP_LOGI(TAG, "Reconnecting WiFi after power saving");
+
+    // Restart WiFi (it was stopped by wifi_manager_disconnect)
+    esp_err_t err = esp_wifi_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start WiFi: %s", esp_err_to_name(err));
+        return WIFI_RESULT_FAILED;
+    }
+
+    // Try each stored credential
+    for (int i = 0; i < stored_count; i++) {
+        if (try_connect_wifi(stored_credentials[i].ssid, stored_credentials[i].password)) {
+            return WIFI_RESULT_CONNECTED;
+        }
+    }
+
+    ESP_LOGW(TAG, "Failed to reconnect to any stored network");
+    return WIFI_RESULT_FAILED;
+}
+
 int wifi_manager_get_stored_count(void)
 {
     return stored_count;

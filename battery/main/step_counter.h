@@ -47,6 +47,20 @@ esp_err_t step_counter_flush_one(void);
 esp_err_t step_counter_get_mac_string(char *mac_str, size_t size);
 
 /**
+ * @brief Get time of last detected step in milliseconds
+ *
+ * @return Timestamp of last step (0 if no steps yet)
+ */
+uint64_t step_counter_get_last_step_time_ms(void);
+
+/**
+ * @brief Check if WiFi reconnection is needed and clear the flag
+ *
+ * @return true if WiFi should be reconnected, false otherwise
+ */
+bool step_counter_needs_wifi_reconnect(void);
+
+/**
  * @brief Get total step count (all steps detected since boot)
  *
  * @return Total number of steps detected

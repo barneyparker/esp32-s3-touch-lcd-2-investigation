@@ -4,6 +4,7 @@
 #include "esp_chip_info.h"
 #include "esp_system.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 #include "battery.h"
 #include "display.h"
@@ -16,10 +17,25 @@
 
 static const char *TAG = "main";
 
+// Power management state
+static bool wifi_power_saving_active = false;
+static bool display_power_saving_active = false;
+static uint64_t power_management_start_time_ms = 0;
+
 static void app_main_loop(void)
 {
+  // Initialize power management timer
+  power_management_start_time_ms = esp_timer_get_time() / 1000;
+
   while (1)
   {
+    uint64_t current_time_ms = esp_timer_get_time() / 1000;
+    uint64_t last_step_ms = step_counter_get_last_step_time_ms();
+
+    // Use the later of: power management start time or last step time
+    uint64_t activity_reference_ms = (last_step_ms > power_management_start_time_ms) ? last_step_ms : power_management_start_time_ms;
+    uint64_t time_since_last_step_ms = current_time_ms - activity_reference_ms;
+
     float voltage = 0.0f;
     int adc_raw = 0;
     read_battery(&voltage, &adc_raw);
@@ -29,22 +45,83 @@ static void app_main_loop(void)
 
     uint8_t buffer_size = step_counter_get_buffer_size();
     uint32_t total_steps = step_counter_get_total_steps();
+
+    // Check if we need to reconnect WiFi after a step
+    if (step_counter_needs_wifi_reconnect() && wifi_power_saving_active) {
+      ESP_LOGI(TAG, "Step detected while WiFi off - reconnecting...");
+      wifi_power_saving_active = false;
+      power_management_start_time_ms = current_time_ms; // Reset timer
+
+      // Reconnect WiFi (don't call init, WiFi is already initialized)
+      wifi_result_t result = wifi_manager_reconnect();
+      if (result == WIFI_RESULT_CONNECTED) {
+        ESP_LOGI(TAG, "WiFi reconnected");
+        // Reconnect WebSocket
+        if (websocket_client_start() == ESP_OK) {
+          ESP_LOGI(TAG, "WebSocket reconnected");
+        }
+      } else {
+        ESP_LOGW(TAG, "Failed to reconnect WiFi after step");
+      }
+    }
+
+    // Reset power management timer on any step
+    if (last_step_ms > power_management_start_time_ms) {
+      power_management_start_time_ms = last_step_ms;
+    }
+
     bool wifi_connected = wifi_manager_is_connected();
     bool ws_connected = websocket_client_is_connected();
 
-    ESP_LOGI(TAG, "ADC raw: %d, Voltage: %.3f V, Percent: %.1f%%, Steps: %lu, Buffered: %d, free heap: %u",
-             adc_raw,
-             voltage,
-             pct_milli / 10.0f,
-             (unsigned long)total_steps,
-             buffer_size,
-             esp_get_free_heap_size());
+    // Calculate countdown timers
+    int wifi_countdown_s = 0;
+    int display_countdown_s = 0;
 
-    // Update UI with all status information
+    if (!wifi_power_saving_active && time_since_last_step_ms < 30000) {
+      wifi_countdown_s = (30000 - time_since_last_step_ms) / 1000;
+    }
+
+    if (!display_power_saving_active && time_since_last_step_ms < 60000) {
+      display_countdown_s = (60000 - time_since_last_step_ms) / 1000;
+    }
+
+    // Power management: WiFi
+    // Turn off WiFi if no steps for 30 seconds AND buffer is empty
+    if (!wifi_power_saving_active && time_since_last_step_ms > 30000 && buffer_size == 0) {
+      ESP_LOGI(TAG, "No activity for 30s, turning off WiFi to save power");
+      websocket_client_stop();
+      wifi_manager_disconnect();
+      wifi_power_saving_active = true;
+      wifi_connected = false;
+      ws_connected = false;
+    }
+
+    // Power management: Display
+    // Turn off display backlight if no steps for 60 seconds
+    if (!display_power_saving_active && time_since_last_step_ms > 60000) {
+      ESP_LOGI(TAG, "No activity for 60s, turning off display to save power");
+      display_backlight_off();
+      display_power_saving_active = true;
+    } else if (display_power_saving_active && time_since_last_step_ms < 60000) {
+      ESP_LOGI(TAG, "Activity detected, turning display back on");
+      display_backlight_on();
+      display_power_saving_active = false;
+    }
+
+    // Log power management state (not every second, only when interesting)
+    if (wifi_countdown_s == 0 || display_countdown_s == 0 || buffer_size > 0) {
+      ESP_LOGI(TAG, "WiFi in: %ds, Display in: %ds, Steps: %lu, Buffered: %d",
+               wifi_countdown_s,
+               display_countdown_s,
+               (unsigned long)total_steps,
+               buffer_size);
+    }
+
+    // Update UI with all status information (even when display is off, so it's ready when we turn back on)
     ui_update_status(total_steps, buffer_size, wifi_connected, ws_connected, battery_pct);
 
-    // Also update detailed battery info
-    ui_update_battery(voltage, adc_raw, pct_milli);
+    // Update power management countdown timers on display
+    ui_update_power_timers(wifi_countdown_s, display_countdown_s);
 
     // Try to send buffered steps if we have any
     if (buffer_size > 0 && ws_connected) {

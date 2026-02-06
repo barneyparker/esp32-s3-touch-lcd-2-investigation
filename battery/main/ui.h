@@ -59,4 +59,12 @@ void ui_show_qr_code(const char *qr_data, const char *message);
  */
 void ui_update_status(uint32_t step_count, uint8_t buffer_count, bool wifi_connected, bool ws_connected, int battery_pct);
 
+/**
+ * @brief Update power management countdown timers
+ *
+ * @param wifi_countdown_s Seconds until WiFi shuts down (0 = already off)
+ * @param display_countdown_s Seconds until display shuts down (0 = already off)
+ */
+void ui_update_power_timers(int wifi_countdown_s, int display_countdown_s);
+
 #endif // UI_H
