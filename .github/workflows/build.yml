@@ -22,10 +22,10 @@ jobs:
         with:
           esp_idf_version: latest
           target: esp32s3
-          path: "battery"
+          path: "step-counter"
 
       - name: Build firmware
-        working-directory: battery
+        working-directory: step-counter
         run: |
           . $IDF_PATH/export.sh
           idf.py build
@@ -36,15 +36,15 @@ jobs:
         with:
           name: firmware-build
           path: |
-            battery/build/*.bin
-            battery/build/bootloader/*.bin
-            battery/build/partition_table/*.bin
+            step-counter/build/*.bin
+            step-counter/build/bootloader/*.bin
+            step-counter/build/partition_table/*.bin
           retention-days: 7
 
       - name: Build summary
         if: success()
         run: |
-          cd battery
+          cd step-counter
           echo "## Build Success ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Firmware Details" >> $GITHUB_STEP_SUMMARY
