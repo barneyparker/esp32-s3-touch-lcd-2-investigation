@@ -1,5 +1,0 @@
-version: '1.2.0'
-description: ESP LCD Touch - Base touch controller support
-url: https://github.com/espressif/esp-bsp/tree/master/components/lcd_touch/esp_lcd_touch
-dependencies:
-  idf: '>=4.4.2'

@@ -1,5 +1,0 @@
-dependencies:
-  # WebSocket client (managed component from registry)
-  espressif/esp_websocket_client: '*'
-  # cJSON library (moved to component registry in ESP-IDF v6)
-  espressif/cjson: '^1.7.15'
