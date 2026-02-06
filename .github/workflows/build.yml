@@ -1,0 +1,58 @@
+name: Build Firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: latest
+          target: esp32s3
+          path: "battery"
+
+      - name: Build firmware
+        working-directory: battery
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py build
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-build
+          path: |
+            battery/build/*.bin
+            battery/build/bootloader/*.bin
+            battery/build/partition_table/*.bin
+          retention-days: 7
+
+      - name: Build summary
+        if: success()
+        run: |
+          cd battery
+          echo "## Build Success ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Firmware Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** ESP32-S3" >> $GITHUB_STEP_SUMMARY
+          echo "- **IDF Version:** v6.1" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Binary Sizes" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh build/*.bin 2>/dev/null || echo "No bin files found"
+          echo '```' >> $GITHUB_STEP_SUMMARY
