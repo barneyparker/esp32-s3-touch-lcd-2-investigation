@@ -14,6 +14,7 @@
 #include "ntp_time.h"
 #include "websocket_client.h"
 #include "step_counter.h"
+#include "ota.h"
 
 static const char *TAG = "main";
 
@@ -192,6 +193,29 @@ void app_main(void)
     } else {
       ESP_LOGW(TAG, "Failed to sync time with NTP server");
       ui_update_startup_status("Time sync failed");
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Check for firmware updates
+    ui_update_startup_status("Checking for updates...");
+    if (ota_init() == ESP_OK) {
+      ESP_LOGI(TAG, "OTA initialized");
+      esp_err_t ota_result = ota_check_and_update();
+      if (ota_result == ESP_OK) {
+        const char* etag = ota_get_current_etag();
+        if (etag) {
+          ESP_LOGI(TAG, "Firmware up to date (ETag: %s)", etag);
+        } else {
+          ESP_LOGI(TAG, "No firmware update available");
+        }
+        ui_update_startup_status("Firmware up to date!");
+      } else {
+        ESP_LOGW(TAG, "OTA check failed: %s", esp_err_to_name(ota_result));
+        ui_update_startup_status("Update check failed");
+      }
+    } else {
+      ESP_LOGW(TAG, "Failed to initialize OTA");
+      ui_update_startup_status("OTA init failed");
     }
     vTaskDelay(pdMS_TO_TICKS(500));
 

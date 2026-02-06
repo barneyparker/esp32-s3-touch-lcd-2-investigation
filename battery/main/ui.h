@@ -67,4 +67,18 @@ void ui_update_status(uint32_t step_count, uint8_t buffer_count, bool wifi_conne
  */
 void ui_update_power_timers(int wifi_countdown_s, int display_countdown_s);
 
+/**
+ * @brief Show or hide OTA update status overlay
+ *
+ * @param visible True to show OTA overlay, false to hide
+ */
+void ui_show_ota_status(bool visible);
+
+/**
+ * @brief Update OTA download progress
+ *
+ * @param percent Download progress percentage (0-100)
+ */
+void ui_update_ota_progress(int percent);
+
 #endif // UI_H

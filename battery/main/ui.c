@@ -30,6 +30,9 @@ static lv_obj_t *label_startup_status = NULL;
 static lv_obj_t *startup_spinner = NULL;
 static lv_obj_t *qr_code = NULL;
 static lv_obj_t *main_container = NULL;
+static lv_obj_t *ota_overlay = NULL;
+static lv_obj_t *ota_label = NULL;
+static lv_obj_t *ota_bar = NULL;
 static SemaphoreHandle_t lvgl_api_mux = NULL;
 
 static bool lvgl_lock(int timeout_ms)
@@ -352,6 +355,56 @@ void ui_update_power_timers(int wifi_countdown_s, int display_countdown_s)
       snprintf(buf, sizeof(buf), "WiFi: %ds | Display: %ds", wifi_countdown_s, display_countdown_s);
       lv_label_set_text(label_power_timers, buf);
     }
+  }
+
+  lvgl_unlock();
+}
+
+void ui_show_ota_status(bool visible)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  if (visible) {
+    if (ota_overlay == NULL) {
+      // Create overlay container
+      ota_overlay = lv_obj_create(lv_scr_act());
+      lv_obj_set_size(ota_overlay, LCD_H_RES, LCD_V_RES);
+      lv_obj_set_style_bg_color(ota_overlay, lv_color_hex(0x000000), 0);
+      lv_obj_set_style_bg_opa(ota_overlay, LV_OPA_90, 0);
+      lv_obj_set_style_border_width(ota_overlay, 0, 0);
+      lv_obj_center(ota_overlay);
+
+      // Create label
+      ota_label = lv_label_create(ota_overlay);
+      lv_label_set_text(ota_label, "Updating Firmware...");
+      lv_obj_set_style_text_color(ota_label, lv_color_hex(0xFFFFFF), 0);
+      lv_obj_set_style_text_font(ota_label, &lv_font_montserrat_12, 0);
+      lv_obj_align(ota_label, LV_ALIGN_CENTER, 0, -40);
+
+      // Create progress bar
+      ota_bar = lv_bar_create(ota_overlay);
+      lv_obj_set_size(ota_bar, 200, 20);
+      lv_obj_align(ota_bar, LV_ALIGN_CENTER, 0, 0);
+      lv_bar_set_value(ota_bar, 0, LV_ANIM_OFF);
+    }
+    lv_obj_clear_flag(ota_overlay, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    if (ota_overlay != NULL) {
+      lv_obj_add_flag(ota_overlay, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  lvgl_unlock();
+}
+
+void ui_update_ota_progress(int percent)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  if (ota_bar != NULL) {
+    lv_bar_set_value(ota_bar, percent, LV_ANIM_OFF);
   }
 
   lvgl_unlock();
