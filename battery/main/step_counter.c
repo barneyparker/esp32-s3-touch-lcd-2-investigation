@@ -25,11 +25,45 @@ static volatile uint8_t step_buffer_write_idx = 0;
 // Total step counter
 static volatile uint32_t total_steps = 0;
 
-// Debouncing
-static volatile uint32_t last_step_time_ms = 0;
+// Debouncing state
+static volatile int last_stable_level = -1;  // Last confirmed stable pin state
+static volatile int pending_level = -1;       // Pin level being debounced
+static volatile uint32_t level_change_time_ms = 0;  // When current level was first seen
+static esp_timer_handle_t debounce_timer = NULL;
 
 // MAC address (cached)
 static char device_mac[18] = {0};
+
+/**
+ * @brief Timer callback to confirm debounced state change
+ */
+static void IRAM_ATTR debounce_timer_callback(void *arg)
+{
+    // Read current pin level
+    int current_level = gpio_get_level(STEP_GPIO);
+    
+    // Check if pin is still in the pending state
+    if (current_level == pending_level && pending_level != last_stable_level) {
+        // Pin has been stable in new state for 80ms - accept the change
+        last_stable_level = pending_level;
+        
+        // Increment total step counter
+        total_steps++;
+        
+        // Add timestamp to buffer if not full
+        if (step_buffer_size < MAX_BUFFERED_STEPS) {
+            uint64_t timestamp_ms = esp_timer_get_time() / 1000;
+            step_buffer[step_buffer_write_idx] = timestamp_ms;
+            step_buffer_write_idx = (step_buffer_write_idx + 1) % MAX_BUFFERED_STEPS;
+            step_buffer_size++;
+        } else {
+            ESP_EARLY_LOGW(TAG, "Step buffer full!");
+        }
+    }
+    
+    // Reset pending state
+    pending_level = -1;
+}
 
 /**
  * @brief ISR handler for step detection
@@ -37,25 +71,28 @@ static char device_mac[18] = {0};
 static void IRAM_ATTR step_isr_handler(void *arg)
 {
     uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
-
-    // Debounce
-    if (now_ms - last_step_time_ms < DEBOUNCE_MS) {
+    int current_level = gpio_get_level(STEP_GPIO);
+    
+    // If this is the first interrupt, just record the initial state
+    if (last_stable_level == -1) {
+        last_stable_level = current_level;
         return;
     }
-    last_step_time_ms = now_ms;
-
-    // Increment total step counter
-    total_steps++;
-
-    // Add timestamp to buffer if not full
-    if (step_buffer_size < MAX_BUFFERED_STEPS) {
-        uint64_t timestamp_ms = esp_timer_get_time() / 1000; // Convert microseconds to milliseconds
-        step_buffer[step_buffer_write_idx] = timestamp_ms;
-        step_buffer_write_idx = (step_buffer_write_idx + 1) % MAX_BUFFERED_STEPS;
-        step_buffer_size++;
-    } else {
-        // Buffer full - step lost
-        ESP_EARLY_LOGW(TAG, "Step buffer full!");
+    
+    // If level is same as stable state, ignore it
+    if (current_level == last_stable_level) {
+        pending_level = -1;
+        return;
+    }
+    
+    // Level has changed - start/restart debounce timer
+    if (pending_level != current_level) {
+        pending_level = current_level;
+        level_change_time_ms = now_ms;
+        
+        // Start the debounce timer (will fire after DEBOUNCE_MS)
+        esp_timer_stop(debounce_timer);
+        esp_timer_start_once(debounce_timer, DEBOUNCE_MS * 1000);  // Convert ms to microseconds
     }
 }
 
@@ -73,6 +110,20 @@ esp_err_t step_counter_init(void)
     snprintf(device_mac, sizeof(device_mac), "%02X:%02X:%02X:%02X:%02X:%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     ESP_LOGI(TAG, "Device MAC: %s", device_mac);
+
+    // Create debounce timer
+    esp_timer_create_args_t timer_args = {
+        .callback = debounce_timer_callback,
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "step_debounce"
+    };
+    
+    err = esp_timer_create(&timer_args, &debounce_timer);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create debounce timer: %s", esp_err_to_name(err));
+        return err;
+    }
 
     // Configure GPIO
     gpio_config_t io_conf = {
