@@ -11,6 +11,7 @@
 #include "touch.h"
 #include "wifi_manager.h"
 #include "ntp_time.h"
+#include "websocket_client.h"
 
 static const char *TAG = "main";
 
@@ -82,6 +83,22 @@ void app_main(void)
     } else {
       ESP_LOGW(TAG, "Failed to sync time with NTP server");
       ui_update_startup_status("Time sync failed");
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Initialize and connect to WebSocket server
+    ui_update_startup_status("Connecting to server...");
+    if (websocket_client_init() == ESP_OK) {
+      if (websocket_client_start() == ESP_OK) {
+        ESP_LOGI(TAG, "WebSocket connection initiated");
+        ui_update_startup_status("Server connection started");
+      } else {
+        ESP_LOGW(TAG, "Failed to start WebSocket connection");
+        ui_update_startup_status("Server connection failed");
+      }
+    } else {
+      ESP_LOGW(TAG, "Failed to initialize WebSocket client");
+      ui_update_startup_status("Server init failed");
     }
     vTaskDelay(pdMS_TO_TICKS(500));
   } else if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
