@@ -40,4 +40,12 @@ void ui_show_main_screen(void);
  */
 void ui_update_battery(float voltage, int adc_raw, int pct_milli);
 
+/**
+ * @brief Display a QR code with message on the startup screen
+ *
+ * @param qr_data QR code data string (e.g., WiFi connection string)
+ * @param message Message to display below QR code
+ */
+void ui_show_qr_code(const char *qr_data, const char *message);
+
 #endif // UI_H

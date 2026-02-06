@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include "lvgl.h"
+#include <string.h>
 
 #define LCD_H_RES 240
 #define LCD_V_RES 320
@@ -24,6 +25,7 @@ static lv_obj_t *label_touch = NULL;
 static lv_obj_t *label_steps = NULL;
 static lv_obj_t *label_startup_status = NULL;
 static lv_obj_t *startup_spinner = NULL;
+static lv_obj_t *qr_code = NULL;
 static lv_obj_t *main_container = NULL;
 static SemaphoreHandle_t lvgl_api_mux = NULL;
 
@@ -199,6 +201,43 @@ void ui_show_main_screen(void)
   lvgl_unlock();
 
   ESP_LOGI(TAG, "Main screen shown");
+}
+
+void ui_show_qr_code(const char *qr_data, const char *message)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  // Clear spinner if it exists
+  if (startup_spinner != NULL)
+  {
+    lv_obj_del(startup_spinner);
+    startup_spinner = NULL;
+  }
+
+  // Delete existing QR code if present
+  if (qr_code != NULL)
+  {
+    lv_obj_del(qr_code);
+    qr_code = NULL;
+  }
+
+  // Create QR code widget - make it as large as possible while fitting on screen
+  // Screen is 240x320, leave room for text at top and bottom
+  lv_obj_t *scr = lv_scr_act();
+  qr_code = lv_qrcode_create(scr, 200, lv_color_black(), lv_color_white());
+  lv_qrcode_update(qr_code, qr_data, strlen(qr_data));
+  lv_obj_align(qr_code, LV_ALIGN_CENTER, 0, -10);
+
+  // Update status message
+  if (label_startup_status != NULL)
+  {
+    lv_label_set_text(label_startup_status, message);
+    lv_obj_align(label_startup_status, LV_ALIGN_BOTTOM_MID, 0, -20);
+  }
+
+  ESP_LOGI(TAG, "QR code displayed: %s", qr_data);
+  lvgl_unlock();
 }
 
 void ui_update_battery(float voltage, int adc_raw, int pct_milli)

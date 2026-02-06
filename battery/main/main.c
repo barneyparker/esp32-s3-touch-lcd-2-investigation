@@ -9,6 +9,7 @@
 #include "display.h"
 #include "ui.h"
 #include "touch.h"
+#include "wifi_manager.h"
 
 static const char *TAG = "main";
 
@@ -57,6 +58,52 @@ void app_main(void)
   // Note: touch_init returns handle but we're not using it yet
   // touch_init(io_handle);
   vTaskDelay(pdMS_TO_TICKS(500));
+
+  // Initialize WiFi and check for stored credentials
+  ui_update_startup_status("Checking WiFi...");
+  wifi_result_t wifi_result = wifi_manager_init();
+
+  if (wifi_result == WIFI_RESULT_CONNECTED) {
+    ESP_LOGI(TAG, "WiFi connected successfully");
+    ui_update_startup_status("WiFi connected!");
+    vTaskDelay(pdMS_TO_TICKS(500));
+  } else if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
+    ESP_LOGW(TAG, "No WiFi credentials stored");
+    ui_update_startup_status("No WiFi - Starting AP...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    wifi_manager_start_ap_mode();
+    
+    // Display QR code for easy connection
+    char qr_data[100];
+    if (wifi_manager_get_ap_qr_string(qr_data, sizeof(qr_data))) {
+      ui_show_qr_code(qr_data, "Scan to connect to 'Stepper'");
+    } else {
+      ui_update_startup_status("Connect to 'Stepper' WiFi");
+    }
+    
+    // Stay in AP mode - don't transition to main screen yet
+    while(1) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+  } else {
+    ESP_LOGW(TAG, "WiFi connection failed, starting AP mode");
+    ui_update_startup_status("WiFi failed - Starting AP...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    wifi_manager_start_ap_mode();
+    
+    // Display QR code for easy connection
+    char qr_data[100];
+    if (wifi_manager_get_ap_qr_string(qr_data, sizeof(qr_data))) {
+      ui_show_qr_code(qr_data, "Scan to connect to 'Stepper'");
+    } else {
+      ui_update_startup_status("Connect to 'Stepper' WiFi");
+    }
+    
+    // Stay in AP mode
+    while(1) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+  }
 
   // Log chip info
   ui_update_startup_status("System ready!");
