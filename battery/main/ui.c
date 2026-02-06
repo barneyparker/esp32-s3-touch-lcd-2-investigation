@@ -16,13 +16,15 @@ static esp_lcd_panel_handle_t panel_handle = NULL;
 static lv_disp_draw_buf_t draw_buf;
 static lv_disp_drv_t disp_drv;
 static lv_disp_drv_t *cached_disp_drv = NULL;
+static lv_color_t *disp_buf1 = NULL;
 static lv_obj_t *label_adc = NULL;
 static lv_obj_t *label_voltage = NULL;
 static lv_obj_t *label_percent = NULL;
 static lv_obj_t *label_touch = NULL;
 static lv_obj_t *label_steps = NULL;
-static lv_disp_draw_buf_t draw_buf;
-static lv_color_t *disp_buf1 = NULL;
+static lv_obj_t *label_startup_status = NULL;
+static lv_obj_t *startup_spinner = NULL;
+static lv_obj_t *main_container = NULL;
 static SemaphoreHandle_t lvgl_api_mux = NULL;
 
 static bool lvgl_lock(int timeout_ms)
@@ -111,42 +113,92 @@ void ui_init(esp_lcd_panel_handle_t lcd_panel)
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register(&disp_drv);
 
-  // Create UI elements BEFORE starting tasks
+  // Create startup screen with spinner and status
   lv_obj_t *scr = lv_scr_act();
-  lv_obj_t *cont = lv_obj_create(scr);
-  lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
 
-  // Large step counter in center
-  label_steps = lv_label_create(cont);
-  lv_label_set_text(label_steps, "8008");
-  lv_obj_set_style_text_font(label_steps, &lv_font_montserrat_48, 0);
-  lv_obj_align(label_steps, LV_ALIGN_CENTER, 0, 0);
+  // Spinner in center
+  startup_spinner = lv_spinner_create(scr, 1000, 60);
+  lv_obj_set_size(startup_spinner, 100, 100);
+  lv_obj_align(startup_spinner, LV_ALIGN_CENTER, 0, -20);
 
-  // Small battery info at top
-  label_percent = lv_label_create(cont);
-  lv_label_set_text(label_percent, "Pct: 0.0%");
-  lv_obj_align(label_percent, LV_ALIGN_TOP_MID, 0, 10);
-
-  label_voltage = lv_label_create(cont);
-  lv_label_set_text(label_voltage, "Volt: 0.000 V");
-  lv_obj_set_style_text_font(label_voltage, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_voltage, LV_ALIGN_TOP_MID, 0, 35);
-
-  label_adc = lv_label_create(cont);
-  lv_label_set_text(label_adc, "ADC: 0");
-  lv_obj_set_style_text_font(label_adc, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_adc, LV_ALIGN_BOTTOM_MID, 0, -10);
-
-  label_touch = lv_label_create(cont);
-  lv_label_set_text(label_touch, "Touch: x=0, y=0");
-  lv_obj_set_style_text_font(label_touch, &lv_font_montserrat_12, 0);
-  lv_obj_align(label_touch, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+  // Status label at bottom
+  label_startup_status = lv_label_create(scr);
+  lv_label_set_text(label_startup_status, "Starting up...");
+  lv_obj_set_style_text_font(label_startup_status, &lv_font_montserrat_14, 0);
+  lv_obj_align(label_startup_status, LV_ALIGN_BOTTOM_MID, 0, -20);
 
   // Create LVGL tasks AFTER UI elements are created
   xTaskCreate(lv_tick_task, "lv_tick", 2048, NULL, 5, NULL);
   xTaskCreate(lv_task, "lv_task", 4096, NULL, 5, NULL);
 
-  ESP_LOGI(TAG, "UI initialized");
+  ESP_LOGI(TAG, "UI initialized with startup screen");
+}
+
+void ui_update_startup_status(const char *status)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  if (label_startup_status != NULL)
+  {
+    lv_label_set_text(label_startup_status, status);
+    ESP_LOGI(TAG, "Startup: %s", status);
+  }
+
+  lvgl_unlock();
+}
+
+void ui_show_main_screen(void)
+{
+  if (!lvgl_lock(500))
+    return;
+
+  // Clear startup screen
+  if (startup_spinner != NULL)
+  {
+    lv_obj_del(startup_spinner);
+    startup_spinner = NULL;
+  }
+  if (label_startup_status != NULL)
+  {
+    lv_obj_del(label_startup_status);
+    label_startup_status = NULL;
+  }
+
+  // Create main UI
+  lv_obj_t *scr = lv_scr_act();
+  main_container = lv_obj_create(scr);
+  lv_obj_set_size(main_container, lv_pct(100), lv_pct(100));
+
+  // Large step counter in center
+  label_steps = lv_label_create(main_container);
+  lv_label_set_text(label_steps, "8008");
+  lv_obj_set_style_text_font(label_steps, &lv_font_montserrat_48, 0);
+  lv_obj_align(label_steps, LV_ALIGN_CENTER, 0, 0);
+
+  // Small battery info at top
+  label_percent = lv_label_create(main_container);
+  lv_label_set_text(label_percent, "Pct: 0.0%");
+  lv_obj_align(label_percent, LV_ALIGN_TOP_MID, 0, 10);
+
+  label_voltage = lv_label_create(main_container);
+  lv_label_set_text(label_voltage, "Volt: 0.000 V");
+  lv_obj_set_style_text_font(label_voltage, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_voltage, LV_ALIGN_TOP_MID, 0, 35);
+
+  label_adc = lv_label_create(main_container);
+  lv_label_set_text(label_adc, "ADC: 0");
+  lv_obj_set_style_text_font(label_adc, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_adc, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+  label_touch = lv_label_create(main_container);
+  lv_label_set_text(label_touch, "Touch: x=0, y=0");
+  lv_obj_set_style_text_font(label_touch, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_touch, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+
+  lvgl_unlock();
+
+  ESP_LOGI(TAG, "Main screen shown");
 }
 
 void ui_update_battery(float voltage, int adc_raw, int pct_milli)

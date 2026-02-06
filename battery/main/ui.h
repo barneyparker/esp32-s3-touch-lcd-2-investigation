@@ -13,11 +13,23 @@
 bool notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
 
 /**
- * @brief Initialize LVGL and create UI elements
+ * @brief Initialize LVGL and create startup screen with spinner
  *
  * @param panel_handle LCD panel handle from display_init()
  */
 void ui_init(esp_lcd_panel_handle_t panel_handle);
+
+/**
+ * @brief Update startup status message
+ *
+ * @param status Status message to display
+ */
+void ui_update_startup_status(const char *status);
+
+/**
+ * @brief Transition from startup screen to main UI
+ */
+void ui_show_main_screen(void);
 
 /**
  * @brief Update UI with battery information

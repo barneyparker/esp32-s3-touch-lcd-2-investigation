@@ -38,25 +38,36 @@ void app_main(void)
 {
   ESP_LOGI(TAG, "Starting battery monitor demo");
 
-  // Initialize battery monitoring
-  battery_init();
-  ESP_LOGI(TAG, "Battery monitoring initialized");
-
-  // Initialize display hardware
+  // Initialize display hardware FIRST
   esp_lcd_panel_handle_t panel = display_init(notify_lvgl_flush_ready);
 
-  // Initialize UI and LVGL
+  // Initialize LVGL and show startup screen
   ui_init(panel);
+  ui_update_startup_status("Initializing hardware...");
+  vTaskDelay(pdMS_TO_TICKS(100)); // Allow UI to render
+
+  // Initialize battery monitoring
+  ui_update_startup_status("Starting battery monitor...");
+  battery_init();
+  ESP_LOGI(TAG, "Battery monitoring initialized");
+  vTaskDelay(pdMS_TO_TICKS(500));
 
   // Initialize touch controller
+  ui_update_startup_status("Initializing touch...");
   // Note: touch_init returns handle but we're not using it yet
   // touch_init(io_handle);
+  vTaskDelay(pdMS_TO_TICKS(500));
 
   // Log chip info
+  ui_update_startup_status("System ready!");
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
   ESP_LOGI(TAG, "Chip: %s, cores: %d, features: 0x%lx",
            CONFIG_IDF_TARGET, chip_info.cores, chip_info.features);
+  vTaskDelay(pdMS_TO_TICKS(500));
+
+  // Transition to main screen
+  ui_show_main_screen();
 
   // Start main application loop
   app_main_loop();
