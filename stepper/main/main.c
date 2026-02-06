@@ -45,7 +45,7 @@ static bool ota_initialized = false;
 /**
  * @brief Main application loop with sequential startup
  */
-static void app_main_loop(void) {
+static void app_main_loop_full(void) {
     ESP_LOGI(TAG, "Starting main application loop");
 
     app_startup_state_t startup_state = APP_STATE_WAIT_WIFI;
@@ -218,17 +218,22 @@ static void app_main_loop(void) {
     }
 }
 
-void app_main(void) {
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Stepper Application Starting");
-    ESP_LOGI(TAG, "========================================");
+/*
+ * Rename of the original full application entry so we can temporarily
+ * run a minimal startup for diagnostics. The original behaviour is
+ * preserved in `app_main_full` and `app_main_loop_full`.
+ */
+void app_main_full(void) {
+    ESP_LOGI(TAG, "(FULL) ========================================");
+    ESP_LOGI(TAG, "(FULL) Stepper Application Starting");
+    ESP_LOGI(TAG, "(FULL) ========================================");
 
     // Phase 1: Initialize core infrastructure
-    ESP_LOGI(TAG, "[Phase 1] Initializing core infrastructure...");
+    ESP_LOGI(TAG, "(FULL) [Phase 1] Initializing core infrastructure...");
 
     // Initialize storage (NVS)
     if (storage_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize storage");
+        ESP_LOGE(TAG, "(FULL) Failed to initialize storage");
         return;
     }
 
@@ -237,13 +242,13 @@ void app_main(void) {
 
     // Initialize display driver (LCD + touch)
     if (display_driver_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize display");
+        ESP_LOGE(TAG, "(FULL) Failed to initialize display");
         return;
     }
 
     // Initialize battery monitor
     if (battery_monitor_init() != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to initialize battery monitor");
+        ESP_LOGW(TAG, "(FULL) Failed to initialize battery monitor");
     }
 
     // Register for state change notifications
@@ -251,79 +256,58 @@ void app_main(void) {
 
     // Initialize UI
     if (ui_manager_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize UI");
+        ESP_LOGE(TAG, "(FULL) Failed to initialize UI");
         return;
     }
 
-    ESP_LOGI(TAG, "[Phase 1] ✓ Core infrastructure initialized");
+    ESP_LOGI(TAG, "(FULL) [Phase 1] ✓ Core infrastructure initialized");
 
-    // Phase 2: Initialize connectivity modules
-    ESP_LOGI(TAG, "[Phase 2] Initializing connectivity modules...");
+    // Phase 2/3 are intentionally left in the original function.
+    ESP_LOGI(TAG, "(FULL) Skipping connectivity initialization in this renamed entry");
 
-    // Initialize WiFi
-    bool should_start_captive_portal = false;
-    if (wifi_manager_init() != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to initialize WiFi");
-        should_start_captive_portal = true;
+    // Run the original main loop (renamed)
+    app_main_loop_full();
+}
+
+/*
+ * Minimal app_main for diagnostic: initialize only the pieces required
+ * to bring up the display and LVGL (based on one.c behaviour).
+ * This avoids starting WiFi/NTP/WebSocket so we can isolate display issues.
+ */
+void app_main(void) {
+    ESP_LOGI(TAG, "(MIN) Minimal Stepper App Starting (display-only)");
+
+    // Minimal core: storage + app state
+    if (storage_init() != ESP_OK) {
+        ESP_LOGE(TAG, "(MIN) Failed to initialize storage");
     }
-    else {
-        // Check if we have stored credentials
-        uint8_t cred_count = 0;
-        wifi_credential_t credentials[WIFI_MAX_STORED_NETWORKS];
-        esp_err_t cred_ret = wifi_manager_get_credentials(credentials, &cred_count);
+    app_state_init();
 
-        if (cred_ret == ESP_OK && cred_count > 0) {
-            // We have credentials - try to connect
-            ESP_LOGI(TAG, "Found %d stored WiFi credential(s), attempting connection...", cred_count);
-            for (int i = 0; i < cred_count; i++) {
-                ESP_LOGI(TAG, "  [%d] SSID='%s'", i, credentials[i].ssid);
-            }
-
-            // Start background connect task
-            if (wifi_manager_connect_async() == ESP_OK) {
-                ESP_LOGI(TAG, "Started background WiFi connect task");
-                // Task will start captive portal if connection fails
-            } else {
-                ESP_LOGW(TAG, "Failed to start background WiFi connect task");
-                should_start_captive_portal = true;
-            }
-        } else {
-            // No credentials - need captive portal
-            ESP_LOGI(TAG, "No stored WiFi credentials - will start captive portal");
-            should_start_captive_portal = true;
-        }
-    }
-
-    // WebSocket, NTP, and OTA will be initialized after WiFi connection
-
-    ESP_LOGI(TAG, "[Phase 2] ✓ Connectivity modules initialized");
-
-    // Start captive portal if needed (no credentials or WiFi init failed)
-    if (should_start_captive_portal) {
-        ESP_LOGI(TAG, "Starting captive portal for WiFi setup...");
-        if (captive_portal_start() == ESP_OK) {
-            ESP_LOGI(TAG, "✓ Captive portal started successfully");
-            // State is set by wifi_manager_start_ap()
-        } else {
-            ESP_LOGE(TAG, "✗ Failed to start captive portal");
-        }
-    }
-
-    // Phase 3: Initialize application-specific modules
-    ESP_LOGI(TAG, "[Phase 3] Initializing application modules...");
-
-    // Initialize step counter
-    if (step_counter_init() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize step counter");
+    // Initialize display driver only (this will initialize LVGL internals)
+    if (display_driver_init() != ESP_OK) {
+        ESP_LOGE(TAG, "(MIN) Failed to initialize display driver");
         return;
     }
 
-    ESP_LOGI(TAG, "[Phase 3] ✓ Application modules initialized");
+    // Initialize battery monitor (start background task to update app_state)
+    if (battery_monitor_init() != ESP_OK) {
+        ESP_LOGW(TAG, "(MIN) battery_monitor_init failed or is in stub mode");
+    } else {
+        ESP_LOGI(TAG, "(MIN) battery monitor started");
+    }
 
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Stepper Application Ready");
-    ESP_LOGI(TAG, "========================================");
+    // Register callback so UI updates still work
+    app_state_register_callback(on_state_changed, NULL);
 
-    // Run main application loop
-    app_main_loop();
+    // Initialize UI (creates the simple test UI)
+    if (ui_manager_init() != ESP_OK) {
+        ESP_LOGE(TAG, "(MIN) Failed to initialize UI manager");
+    }
+
+    ESP_LOGI(TAG, "(MIN) Display and UI should be up. Not starting network modules.");
+
+    // Keep the task alive so device doesn't exit
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }

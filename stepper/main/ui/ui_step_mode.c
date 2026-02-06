@@ -22,12 +22,11 @@ static void create_step_display(lv_obj_t* parent) {
     // Create large step count label
     label_count = lv_label_create(parent);
     lv_label_set_text(label_count, "00000");
-    lv_obj_set_align(label_count, LV_ALIGN_CENTER);
-    lv_obj_set_y(label_count, -40);
+    lv_obj_align(label_count, LV_ALIGN_CENTER, 0, -40);
 
     // Use large 48pt font for step count
     lv_obj_set_style_text_font(label_count, &lv_font_montserrat_48, 0);
-    lv_obj_set_style_text_color(label_count, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_color(label_count, lv_color_hex(0x000000), 0);
 
     ESP_LOGI(TAG, "Step count label created at center with 48pt font");
 }
@@ -38,12 +37,11 @@ static void create_step_display(lv_obj_t* parent) {
 static void create_time_display(lv_obj_t* parent) {
     label_time = lv_label_create(parent);
     lv_label_set_text(label_time, "00:00");
-    lv_obj_set_align(label_time, LV_ALIGN_CENTER);
-    lv_obj_set_y(label_time, 30);
+    lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 30);
 
     // Use 20pt font for time
     lv_obj_set_style_text_font(label_time, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(label_time, lv_color_hex(0xCCCCCC), 0);
+    lv_obj_set_style_text_color(label_time, lv_color_hex(0x333333), 0);
 }
 
 /**
@@ -53,30 +51,26 @@ static void create_status_area(lv_obj_t* parent) {
     // WiFi status
     label_wifi = lv_label_create(parent);
     lv_label_set_text(label_wifi, "📶");
-    lv_obj_set_align(label_wifi, LV_ALIGN_BOTTOM_LEFT);
-    lv_obj_set_pos(label_wifi, 10, -10);
+    lv_obj_align(label_wifi, LV_ALIGN_BOTTOM_LEFT, 10, -10);
     lv_obj_set_style_text_font(label_wifi, &lv_font_montserrat_14, 0);
 
     // WiFi SSID - display network name below the indicator
     label_wifi_ssid = lv_label_create(parent);
     lv_label_set_text(label_wifi_ssid, "");
-    lv_obj_set_align(label_wifi_ssid, LV_ALIGN_BOTTOM_LEFT);
-    lv_obj_set_pos(label_wifi_ssid, 10, -30);
+    lv_obj_align(label_wifi_ssid, LV_ALIGN_BOTTOM_LEFT, 10, -30);
     lv_obj_set_style_text_font(label_wifi_ssid, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(label_wifi_ssid, lv_color_hex(0x99CCFF), 0);
 
     // WebSocket status
     label_ws = lv_label_create(parent);
     lv_label_set_text(label_ws, "◯");
-    lv_obj_set_align(label_ws, LV_ALIGN_BOTTOM_LEFT);
-    lv_obj_set_pos(label_ws, 50, -10);
+    lv_obj_align(label_ws, LV_ALIGN_BOTTOM_LEFT, 50, -10);
     lv_obj_set_style_text_font(label_ws, &lv_font_montserrat_14, 0);
 
     // Battery
     label_battery = lv_label_create(parent);
     lv_label_set_text(label_battery, "🔋 85%");
-    lv_obj_set_align(label_battery, LV_ALIGN_BOTTOM_RIGHT);
-    lv_obj_set_pos(label_battery, -10, -10);
+    lv_obj_align(label_battery, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
     lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(label_battery, lv_color_hex(0x88FF88), 0);
 }
@@ -87,8 +81,7 @@ static void create_status_area(lv_obj_t* parent) {
 static void create_backlog_display(lv_obj_t* parent) {
     label_backlog = lv_label_create(parent);
     lv_label_set_text(label_backlog, "↗ 0");
-    lv_obj_set_align(label_backlog, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_pos(label_backlog, -10, 20);
+    lv_obj_align(label_backlog, LV_ALIGN_TOP_RIGHT, -10, 20);
 
     lv_obj_set_style_text_font(label_backlog, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(label_backlog, lv_color_hex(0xFFAA00), 0);
@@ -97,20 +90,35 @@ static void create_backlog_display(lv_obj_t* parent) {
 void ui_step_mode_create(void) {
     lv_obj_t* screen = lv_scr_act();
 
-    // Set dark background
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x1A1A1A), 0);
+    // Set WHITE background
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_border_width(screen, 0, 0);
-    ESP_LOGI(TAG, "Screen background set to dark color");
+    ESP_LOGI(TAG, "Screen background set to white");
 
-    // Create all UI elements
+    // TEST: Create a simple label with BLACK text directly on screen
+    lv_obj_t* test_label = lv_label_create(screen);
+    lv_label_set_text(test_label, "TEST");
+    lv_obj_align(test_label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_text_font(test_label, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(test_label, lv_color_hex(0x000000), 0);
+    ESP_LOGI(TAG, "Created TEST label at center with BLACK text");
+
+    // Create container for UI elements (transparent, no bg)
+    lv_obj_t* cont = lv_obj_create(screen);
+    lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
+    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(cont, 0, 0);
+    ESP_LOGI(TAG, "Created container for UI elements");
+
+    // Create all UI elements inside container
     ESP_LOGI(TAG, "Creating step display...");
-    create_step_display(screen);
+    create_step_display(cont);
     ESP_LOGI(TAG, "Creating time display...");
-    create_time_display(screen);
+    create_time_display(cont);
     ESP_LOGI(TAG, "Creating status area...");
-    create_status_area(screen);
+    create_status_area(cont);
     ESP_LOGI(TAG, "Creating backlog display...");
-    create_backlog_display(screen);
+    create_backlog_display(cont);
 
     // Make screen visible
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_HIDDEN);

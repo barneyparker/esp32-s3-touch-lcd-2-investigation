@@ -1,4 +1,5 @@
 #include "display_driver.h"
+#include "lvgl.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -60,6 +61,9 @@ static void lvgl_flush_cb(lv_disp_drv_t* drv, const lv_area_t* area, lv_color_t*
     int offsetx2 = area->x2;
     int offsety1 = area->y1;
     int offsety2 = area->y2;
+
+    ESP_LOGI(TAG, "FLUSH: x1=%d, y1=%d, x2=%d, y2=%d", offsetx1, offsety1, offsetx2, offsety2);
+
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, color_map);
 }
 
@@ -102,6 +106,17 @@ static void lv_task(void* arg) {
             display_driver_unlock();
         }
         vTaskDelay(task_delay);
+    }
+}
+
+/* LVGL tick increment task (matches battery/main/one.c behavior) */
+static void lv_tick_task(void *arg)
+{
+    (void)arg;
+    const TickType_t delay_ticks = pdMS_TO_TICKS(LVGL_TICK_MS);
+    while (1) {
+        lv_tick_inc(LVGL_TICK_MS);
+        vTaskDelay(delay_ticks == 0 ? 1 : delay_ticks);
     }
 }
 
@@ -174,6 +189,30 @@ static esp_err_t touch_init(void) {
 esp_err_t display_driver_init(void) {
     ESP_LOGI(TAG, "Initializing display driver");
 
+    // Initialize backlight PWM FIRST (before LVGL, before SPI, before I2C)
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .timer_num = LEDC_TIMER_0,
+        .freq_hz = 10000,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LEDC_CHANNEL_0,
+        .timer_sel = LEDC_TIMER_0,
+        .intr_type = LEDC_INTR_DISABLE,
+        .gpio_num = BK_LIGHT_PIN,
+        .duty = 512,  // ~50% brightness to match reference demo
+        .hpoint = 0,
+    };
+    ledc_channel_config(&ledc_channel);
+
+    brightness_percent = 100;
+    ESP_LOGI(TAG, "Backlight PWM initialized at 100% brightness (fixed)");
+
     // Initialize LVGL
     lv_init();
 
@@ -183,30 +222,6 @@ esp_err_t display_driver_init(void) {
         ESP_LOGE(TAG, "Failed to create LVGL mutex");
         return ESP_ERR_NO_MEM;
     }
-
-    // Initialize backlight PWM (LEDC will configure the GPIO automatically)
-    ledc_timer_config_t ledc_timer = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .duty_resolution = LEDC_TIMER_10_BIT,
-        .timer_num = LEDC_TIMER_0,
-        .freq_hz = 10000,
-        .clk_cfg = LEDC_AUTO_CLK,
-    };
-    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
-
-    ledc_channel_config_t ledc_channel = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = LEDC_CHANNEL_0,
-        .timer_sel = LEDC_TIMER_0,
-        .intr_type = LEDC_INTR_DISABLE,
-        .gpio_num = BK_LIGHT_PIN,
-        .duty = 512,  // Start at 50% like working demo
-        .hpoint = 0,
-    };
-    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-
-    brightness_percent = 50;
-    ESP_LOGI(TAG, "Backlight PWM initialized at 50% brightness");
 
     // Initialize I2C
     ESP_ERROR_CHECK(i2c_init());
@@ -240,7 +255,7 @@ esp_err_t display_driver_init(void) {
     // Initialize LCD panel
     esp_lcd_panel_dev_config_t panel_config = {
         .reset_gpio_num = LCD_PIN_RST,
-        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
+        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,  // Red bar confirmed RGB order is correct
         .bits_per_pixel = 16,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(io_handle, &panel_config, &panel_handle));
@@ -250,10 +265,11 @@ esp_err_t display_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle, false));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, true));
-    ESP_LOGI(TAG, "LCD panel initialized");
 
-    // Initialize LVGL display buffer - MUST use DMA-capable memory (not PSRAM)
-    // Use smaller buffer (40 lines) to fit in internal RAM
+    ESP_LOGI(TAG, "LCD panel initialized (ST7789, RGB order, color inverted)");
+
+    // Initialize LVGL display buffer - use DMA-capable internal RAM for SPI
+    // SPI DMA cannot access PSRAM, must use internal RAM
     disp_buf1 = heap_caps_malloc(LCD_H_RES * 40 * sizeof(lv_color_t), MALLOC_CAP_DMA);
     if (disp_buf1 == NULL) {
         ESP_LOGE(TAG, "Failed to allocate LVGL display buffer");
@@ -270,8 +286,10 @@ esp_err_t display_driver_init(void) {
     lv_disp_drv_register(&disp_drv);
     ESP_LOGI(TAG, "LVGL display driver registered");
 
-    // Start LVGL handler task (tick handled by LV_TICK_CUSTOM via esp_timer)
+    // Start LVGL tick and handler tasks (match reference example)
+    xTaskCreate(lv_tick_task, "lv_tick", 2048, NULL, 5, NULL);
     xTaskCreate(lv_task, "lv_task", 4096, NULL, 5, NULL);
+    ESP_LOGI(TAG, "LVGL tick and task handlers started");
 
     // Initialize touch
     touch_init();
@@ -281,18 +299,10 @@ esp_err_t display_driver_init(void) {
 }
 
 void display_driver_set_brightness(uint8_t percent) {
-    if (percent > 100) {
-        percent = 100;
-    }
-    brightness_percent = percent;
-
-    // Map 0-100 to 0-(2^10-1) for PWM duty (10-bit resolution)
-    const uint32_t max_duty = (1 << 10) - 1;
-    uint32_t duty = (percent * max_duty) / 100;
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-
-    ESP_LOGI(TAG, "Brightness set to %d%% (duty=%d/%d)", percent, duty, max_duty);
+    // Brightness adjustment disabled - backlight fixed at 100%
+    // Do not adjust to avoid dimming issues
+    (void)percent;
+    return;
 }
 
 uint8_t display_driver_get_brightness(void) {

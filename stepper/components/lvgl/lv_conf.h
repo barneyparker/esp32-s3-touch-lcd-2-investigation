@@ -74,13 +74,11 @@
 /*Input device read period in milliseconds*/
 #define LV_INDEV_DEF_READ_PERIOD 30     /*[ms]*/
 
-/*Use a custom tick source that tells the elapsed time in milliseconds.
- *It removes the need to manually update the tick with `lv_tick_inc()`)*/
-#define LV_TICK_CUSTOM 1
-#if LV_TICK_CUSTOM
-    #define LV_TICK_CUSTOM_INCLUDE "esp_timer.h"
-    #define LV_TICK_CUSTOM_SYS_TIME_EXPR ((esp_timer_get_time() / 1000LL))
-#endif
+/* Use a custom tick source that tells the elapsed time in milliseconds.
+ * For compatibility with the reference example (`one.c`) we disable the
+ * custom tick so `lv_tick_inc()` is available and can be called from a task.
+ */
+#define LV_TICK_CUSTOM 0
 
 /*Default Dot Per Inch. Used to initialize default sizes such as widgets sized, style paddings.
  *(Not so important, you can adjust it to modify default sizes and spaces)*/

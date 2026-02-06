@@ -28,7 +28,7 @@ esp_err_t ui_manager_init(void) {
     // Create main screen (dark background)
     main_screen = lv_obj_create(NULL);
     lv_obj_set_size(main_screen, 320, 240);
-    lv_obj_set_style_bg_color(main_screen, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(main_screen, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_border_width(main_screen, 0, 0);
 
     // Load step mode UI
