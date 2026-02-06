@@ -22,32 +22,32 @@ static bool initialized = false;
 /**
  * @brief WebSocket event handler
  */
-static void websocket_event_handler(void *handler_args, esp_event_base_t base, 
+static void websocket_event_handler(void *handler_args, esp_event_base_t base,
                                    int32_t event_id, void *event_data)
 {
     esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
-    
+
     switch (event_id) {
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGI(TAG, "WebSocket connected");
             current_state = WS_STATE_CONNECTED;
             break;
-            
+
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "WebSocket disconnected");
             current_state = WS_STATE_DISCONNECTED;
             break;
-            
+
         case WEBSOCKET_EVENT_DATA:
             ESP_LOGI(TAG, "Received data: %.*s", data->data_len, (char *)data->data_ptr);
             // Handle server responses here if needed
             break;
-            
+
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGE(TAG, "WebSocket error");
             current_state = WS_STATE_ERROR;
             break;
-            
+
         default:
             break;
     }
@@ -61,7 +61,7 @@ esp_err_t websocket_client_init(void)
     }
 
     ESP_LOGI(TAG, "Initializing WebSocket client");
-    
+
     esp_websocket_client_config_t ws_cfg = {
         .uri = WS_URI,
         .reconnect_timeout_ms = WS_RECONNECT_TIMEOUT_MS,
@@ -123,7 +123,7 @@ esp_err_t websocket_client_stop(void)
     }
 
     ESP_LOGI(TAG, "Stopping WebSocket connection");
-    
+
     esp_err_t err = esp_websocket_client_stop(client);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to stop WebSocket client: %s", esp_err_to_name(err));
@@ -136,8 +136,8 @@ esp_err_t websocket_client_stop(void)
 
 bool websocket_client_is_connected(void)
 {
-    return (current_state == WS_STATE_CONNECTED && 
-            client != NULL && 
+    return (current_state == WS_STATE_CONNECTED &&
+            client != NULL &&
             esp_websocket_client_is_connected(client));
 }
 
@@ -174,7 +174,7 @@ esp_err_t websocket_client_send_step(uint32_t step_count, time_t timestamp)
 
     ESP_LOGI(TAG, "Sending step data: %s", json_string);
 
-    int sent = esp_websocket_client_send_text(client, json_string, strlen(json_string), 
+    int sent = esp_websocket_client_send_text(client, json_string, strlen(json_string),
                                                portMAX_DELAY);
     free(json_string);
 
@@ -185,6 +185,11 @@ esp_err_t websocket_client_send_step(uint32_t step_count, time_t timestamp)
 
     ESP_LOGI(TAG, "Successfully sent %d bytes", sent);
     return ESP_OK;
+}
+
+esp_websocket_client_handle_t websocket_client_get_handle(void)
+{
+    return client;
 }
 
 esp_err_t websocket_client_deinit(void)
@@ -201,7 +206,7 @@ esp_err_t websocket_client_deinit(void)
 
     initialized = false;
     current_state = WS_STATE_DISCONNECTED;
-    
+
     ESP_LOGI(TAG, "WebSocket client deinitialized");
     return ESP_OK;
 }

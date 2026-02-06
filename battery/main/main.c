@@ -12,6 +12,7 @@
 #include "wifi_manager.h"
 #include "ntp_time.h"
 #include "websocket_client.h"
+#include "step_counter.h"
 
 static const char *TAG = "main";
 
@@ -25,13 +26,26 @@ static void app_main_loop(void)
 
     int pct_milli = estimate_percentage_milli(voltage);
 
-    ESP_LOGI(TAG, "ADC raw: %d, Voltage: %.3f V, Percent: %.1f%%, free heap: %u",
+    uint8_t buffer_size = step_counter_get_buffer_size();
+
+    ESP_LOGI(TAG, "ADC raw: %d, Voltage: %.3f V, Percent: %.1f%%, Steps buffered: %d, free heap: %u",
              adc_raw,
              voltage,
              pct_milli / 10.0f,
+             buffer_size,
              esp_get_free_heap_size());
 
     ui_update_battery(voltage, adc_raw, pct_milli);
+
+    // Try to send buffered steps if we have any
+    if (buffer_size > 0 && websocket_client_is_connected()) {
+      esp_err_t err = step_counter_flush_one();
+      if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Sent buffered step");
+      } else if (err != ESP_ERR_NOT_FOUND) {
+        ESP_LOGW(TAG, "Failed to send step: %s", esp_err_to_name(err));
+      }
+    }
 
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
@@ -99,6 +113,17 @@ void app_main(void)
     } else {
       ESP_LOGW(TAG, "Failed to initialize WebSocket client");
       ui_update_startup_status("Server init failed");
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Initialize step counter
+    ui_update_startup_status("Initializing step counter...");
+    if (step_counter_init() == ESP_OK) {
+      ESP_LOGI(TAG, "Step counter initialized");
+      ui_update_startup_status("Step counter ready!");
+    } else {
+      ESP_LOGW(TAG, "Failed to initialize step counter");
+      ui_update_startup_status("Step counter failed");
     }
     vTaskDelay(pdMS_TO_TICKS(500));
   } else if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
