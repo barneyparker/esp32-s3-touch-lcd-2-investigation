@@ -123,13 +123,22 @@ static void app_main_loop(void)
     // Update power management countdown timers on display
     ui_update_power_timers(wifi_countdown_s, display_countdown_s);
 
-    // Try to send buffered steps if we have any
+    // Try to send ALL buffered steps if we have any and are connected
     if (buffer_size > 0 && ws_connected) {
-      esp_err_t err = step_counter_flush_one();
-      if (err == ESP_OK) {
-        ESP_LOGI(TAG, "Sent buffered step");
-      } else if (err != ESP_ERR_NOT_FOUND) {
-        ESP_LOGW(TAG, "Failed to send step: %s", esp_err_to_name(err));
+      int sent_count = 0;
+      while (step_counter_get_buffer_size() > 0 && websocket_client_is_connected()) {
+        esp_err_t err = step_counter_flush_one();
+        if (err == ESP_OK) {
+          sent_count++;
+        } else if (err != ESP_ERR_NOT_FOUND) {
+          ESP_LOGW(TAG, "Failed to send buffered step: %s", esp_err_to_name(err));
+          break; // Stop trying if we fail to send
+        } else {
+          break; // Buffer is empty
+        }
+      }
+      if (sent_count > 0) {
+        ESP_LOGI(TAG, "Sent %d buffered step(s)", sent_count);
       }
     }
 
