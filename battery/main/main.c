@@ -10,6 +10,7 @@
 #include "ui.h"
 #include "touch.h"
 #include "wifi_manager.h"
+#include "ntp_time.h"
 
 static const char *TAG = "main";
 
@@ -67,12 +68,28 @@ void app_main(void)
     ESP_LOGI(TAG, "WiFi connected successfully");
     ui_update_startup_status("WiFi connected!");
     vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Synchronize time with NTP server
+    ui_update_startup_status("Syncing time...");
+    if (ntp_time_sync()) {
+      char time_str[64];
+      if (ntp_time_get_string(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S")) {
+        ESP_LOGI(TAG, "Current time: %s", time_str);
+        ui_update_startup_status("Time synchronized!");
+      } else {
+        ui_update_startup_status("Time set!");
+      }
+    } else {
+      ESP_LOGW(TAG, "Failed to sync time with NTP server");
+      ui_update_startup_status("Time sync failed");
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
   } else if (wifi_result == WIFI_RESULT_NO_CREDENTIALS) {
     ESP_LOGW(TAG, "No WiFi credentials stored");
     ui_update_startup_status("No WiFi - Starting AP...");
     vTaskDelay(pdMS_TO_TICKS(1000));
     wifi_manager_start_ap_mode();
-    
+
     // Display QR code for easy connection
     char qr_data[100];
     if (wifi_manager_get_ap_qr_string(qr_data, sizeof(qr_data))) {
@@ -80,7 +97,7 @@ void app_main(void)
     } else {
       ui_update_startup_status("Connect to 'Stepper' WiFi");
     }
-    
+
     // Stay in AP mode - don't transition to main screen yet
     while(1) {
       vTaskDelay(pdMS_TO_TICKS(1000));
@@ -90,7 +107,7 @@ void app_main(void)
     ui_update_startup_status("WiFi failed - Starting AP...");
     vTaskDelay(pdMS_TO_TICKS(1000));
     wifi_manager_start_ap_mode();
-    
+
     // Display QR code for easy connection
     char qr_data[100];
     if (wifi_manager_get_ap_qr_string(qr_data, sizeof(qr_data))) {
@@ -98,7 +115,7 @@ void app_main(void)
     } else {
       ui_update_startup_status("Connect to 'Stepper' WiFi");
     }
-    
+
     // Stay in AP mode
     while(1) {
       vTaskDelay(pdMS_TO_TICKS(1000));

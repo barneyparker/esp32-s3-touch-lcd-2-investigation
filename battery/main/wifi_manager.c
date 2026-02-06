@@ -134,14 +134,14 @@ static void scan_wifi_networks(void)
 
     uint16_t ap_count = 0;
     esp_wifi_scan_get_ap_num(&ap_count);
-    
+
     // Limit to our array size
     scan_results_count = (ap_count > MAX_SCAN_RESULTS) ? MAX_SCAN_RESULTS : ap_count;
-    
+
     if (scan_results_count > 0) {
         ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&scan_results_count, scan_results));
     }
-    
+
     ESP_LOGI(TAG, "Found %d networks", scan_results_count);
 }
 
@@ -194,7 +194,7 @@ static esp_err_t scan_get_handler(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Memory allocation failed");
         return ESP_FAIL;
     }
-    
+
     cJSON *networks = cJSON_AddArrayToObject(root, "networks");
     if (networks == NULL) {
         cJSON_Delete(root);
@@ -409,7 +409,7 @@ bool wifi_manager_get_ap_qr_string(char *buffer, size_t buffer_size)
     if (buffer == NULL || buffer_size < 50) {
         return false;
     }
-    
+
     // Format: WIFI:T:nopass;S:<SSID>;;\n    // For open network (no password)
     snprintf(buffer, buffer_size, "WIFI:T:nopass;S:%s;;", AP_SSID);
     return true;

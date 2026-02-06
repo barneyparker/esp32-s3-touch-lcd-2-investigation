@@ -44,10 +44,10 @@ int wifi_manager_get_stored_count(void);
 
 /**
  * @brief Get WiFi QR code string for AP connection
- * 
+ *
  * Returns a string in format: WIFI:T:nopass;S:<SSID>;;
  * which can be scanned to automatically connect to the AP.
- * 
+ *
  * @param buffer Buffer to store QR code string
  * @param buffer_size Size of buffer
  * @return true if successful, false if buffer too small
