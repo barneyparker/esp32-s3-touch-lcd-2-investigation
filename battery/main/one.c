@@ -159,6 +159,7 @@ static lv_obj_t *label_adc = NULL;
 static lv_obj_t *label_voltage = NULL;
 static lv_obj_t *label_percent = NULL;
 static lv_obj_t *label_touch = NULL; // New label for touch coordinates
+static lv_obj_t *label_steps = NULL; // Large step counter display
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *disp_buf1 = NULL;
 static SemaphoreHandle_t lvgl_api_mux = NULL;
@@ -307,21 +308,31 @@ static void display_init(void)
   lv_obj_t *cont = lv_obj_create(scr);
   lv_obj_set_size(cont, lv_pct(100), lv_pct(100));
 
-  label_adc = lv_label_create(cont);
-  lv_label_set_text(label_adc, "ADC: 0");
-  lv_obj_align(label_adc, LV_ALIGN_TOP_MID, 0, 10);
+  // Large step counter in center
+  label_steps = lv_label_create(cont);
+  lv_label_set_text(label_steps, "8008");
+  lv_obj_set_style_text_font(label_steps, &lv_font_montserrat_48, 0);
+  lv_obj_align(label_steps, LV_ALIGN_CENTER, 0, 0);
+
+  // Small battery info at top
+  label_percent = lv_label_create(cont);
+  lv_label_set_text(label_percent, "Pct: 0.0%");
+  lv_obj_align(label_percent, LV_ALIGN_TOP_MID, 0, 10);
 
   label_voltage = lv_label_create(cont);
   lv_label_set_text(label_voltage, "Volt: 0.000 V");
-  lv_obj_align(label_voltage, LV_ALIGN_TOP_MID, 0, 40);
+  lv_obj_set_style_text_font(label_voltage, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_voltage, LV_ALIGN_TOP_MID, 0, 35);
 
-  label_percent = lv_label_create(cont);
-  lv_label_set_text(label_percent, "Pct: 0.0%");
-  lv_obj_align(label_percent, LV_ALIGN_TOP_MID, 0, 70);
+  label_adc = lv_label_create(cont);
+  lv_label_set_text(label_adc, "ADC: 0");
+  lv_obj_set_style_text_font(label_adc, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_adc, LV_ALIGN_BOTTOM_MID, 0, -10);
 
   label_touch = lv_label_create(cont);
   lv_label_set_text(label_touch, "Touch: x=0, y=0");
-  lv_obj_align(label_touch, LV_ALIGN_TOP_LEFT, 10, 10);
+  lv_obj_set_style_text_font(label_touch, &lv_font_montserrat_12, 0);
+  lv_obj_align(label_touch, LV_ALIGN_BOTTOM_LEFT, 10, -10);
 }
 
 static void display_update(float voltage, int adc_raw, int pct_milli)
